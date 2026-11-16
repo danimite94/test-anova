@@ -208,6 +208,21 @@ and quality summary against it.
 
 ## 4. Ingestion (FR-002, FR-014)
 
+**Contract validation (GOV-003).** Before classification, every record in a batch (a file or
+an ingest request) is checked against the data contract:
+
+| Field | Rule |
+|---|---|
+| `seq` | Positive integer, unique within the batch |
+| `sensor_id` | Exists in the `sensor` table |
+| `ts` | ISO 8601 with an explicit offset; whole minute (seconds = 0); inside the dataset period |
+| `value` | Finite number (not NaN or ±Infinity) |
+
+A batch with any violation is rejected whole and nothing is written. The error names the first
+violating `seq`, the field and the rule. Contract violations are malformed input; quality flags
+(§4.1) describe well-formed readings with doubtful values. An out-of-range but finite value
+passes the contract and is flagged `outlier`.
+
 ### 4.1 Classifier
 
 A pure function in `telemetry.domain`, shared by the batch loader and the ingest endpoint:
@@ -236,7 +251,8 @@ for the same input (FR-014 criterion 3).
 telemetry-load --input data/generated/   # runs once in the init container, after telemetry-migrate
 ```
 
-1. Read `manifest.json`; compute SHA-256 of `readings.csv` and check it matches.
+1. Read `manifest.json`; compute SHA-256 of `readings.csv` and check it matches. Validate every
+   record against the contract (§4); on any violation exit non-zero without writing.
 2. If a `dataset` row with that SHA-256 exists → log "already loaded", exit 0 (idempotent).
 3. If a *different* dataset is already loaded → exit non-zero with a clear message unless
    `--replace` is passed (one dataset at a time).
@@ -541,6 +557,8 @@ Query: `sensor_id` (repeated, optional), `from`, `to`.
 Streamed responses, `Content-Type: text/csv; charset=utf-8`, with
 `Content-Disposition: attachment; filename="<kind>_<from>_<to>.csv"`. UTF-8, comma-separated,
 `\n` line endings, header row always present (even with no data rows).
+Lineage headers (GOV-004): `X-Dataset-Sha256` and `X-Generator-Version` identify the dataset the
+export was produced from.
 
 `GET /export/readings.csv` — query: `sensor_id` (repeated), `from`, `to`, `valid_only` (default `false`).
 
@@ -600,7 +618,8 @@ All configuration through environment variables; `.env.example` documents them.
 
 | Variable | Used by | Default |
 |---|---|---|
-| `DATABASE_URL` | init, backend | `postgresql://telemetry:telemetry@db:5432/telemetry` |
+| `DATABASE_URL` | init (owner role), backend (`telemetry_app` role) | init: `postgresql://telemetry:telemetry@db:5432/telemetry`; backend: `postgresql://telemetry_app:telemetry_app@db:5432/telemetry` |
+| `APP_DB_PASSWORD` | init | `telemetry_app` — password `init` sets on the `telemetry_app` role |
 | `GENERATOR_SEED` | init | `42` |
 | `GENERATOR_START` | init | `2026-11-02T00:00:00Z` |
 | `GENERATOR_WEEKS` | init | `1` |
@@ -608,7 +627,13 @@ All configuration through environment variables; `.env.example` documents them.
 | `INIT_LOAD` | init | `true` (`false` = migrate only, for a replay demo) |
 | `API_BASE_URL` | replay client | `http://backend:8000/api/v1` |
 
-The local default credentials are for the local stack only; Phase 2 governance covers secrets.
+**Database roles (GOV-005).** The owner role (`telemetry`) runs migrations and loads data in
+`init`. The first migration creates role `telemetry_app` with `SELECT` on all tables and
+`INSERT` on `reading` and `dataset` (plus `UPDATE` on `dataset.flag_counts` for replay); `init`
+sets its password from `APP_DB_PASSWORD`. The backend connects only as `telemetry_app`.
+
+The default credentials are for the local stack only and live in `.env.example`; real values
+go in an untracked `.env` (GOV-007, GOV-008).
 
 ## 9. Logging and health (NFR-011)
 

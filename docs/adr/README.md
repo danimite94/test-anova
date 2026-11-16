@@ -15,4 +15,4 @@ decision gets a new ADR that supersedes the old one.
 | [0007](0007-testing-strategy-tdd-and-traceability.md) | Testing strategy — TDD, real-database tests, requirement traceability | Accepted |
 | [0008](0008-docker-compose-containerization.md) | Containerization with Docker Compose | Accepted |
 | [0009](0009-github-actions-ci-cd.md) | CI/CD with GitHub Actions; "deploy" means publishing versioned images | Accepted |
-| [0010](0010-guardrails-for-ai-assisted-development.md) | Guardrails for AI-assisted development | Proposed (Phase 2) |
+| [0010](0010-guardrails-for-ai-assisted-development.md) | Layered guardrails for data and AI-assisted development | Accepted |

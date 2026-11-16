@@ -232,13 +232,20 @@ laptop running the full stack in Docker.
 
 ## 8. Data & AI governance
 
-**TBD — specified in Phase 2** (`docs/GOVERNANCE.md`, requirement IDs `GOV-xxx`).
+Specified in **`docs/GOVERNANCE.md`** as requirements `GOV-001`…`GOV-017`, each with its
+enforcement points (agent hooks, pre-commit, CI, database privileges, human review). They are
+tested and traced like FRs and NFRs (NFR-009). In summary:
 
-Constraints already in place that Phase 2 builds on:
+- **Data** — synthetic data only; no data files in the repository; a data contract validated at
+  ingestion; lineage from every number back to its dataset; raw readings immutable to the
+  application; a defined retention path.
+- **Secrets and supply chain** — no credentials in source or history; `.env` never committed;
+  least-privilege CI; pinned dependencies, actions and images.
+- **AI-assisted development** — specs change before behaviour; checks are never weakened to
+  pass; protected paths change only by a human; everything reaches `main` through a reviewed
+  PR; agent output is checked as it is written; every requirement is traced to tests.
 
-- Only synthetic data is used; no real plant data enters the repository.
-- Every load records its seed and generator version (lineage, FR-002).
-- Raw readings are never modified or deleted by the product; quality is expressed by flags (FR-002).
+The product itself has no AI features; adding one requires a new ADR and governance rules first.
 
 ## 9. Out of scope
 
