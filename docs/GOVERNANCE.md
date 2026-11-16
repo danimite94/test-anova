@@ -99,7 +99,14 @@ enforced in CI or by review, and why hook scripts and settings are themselves pr
 
 ## Verification
 
-Each GOV rule gets tests in Phase 2 or Phase 3 (data rules need the loader). The guardrails
-themselves are proven with a scripted demonstration (`scripts/governance/demo.sh`) that
-attempts, on a throwaway branch: a lint error, a fake secret, a `.env` file, a new `# noqa`,
-and a lowered coverage threshold — and records each layer rejecting it.
+Each GOV rule gets tests in Phase 2 or Phase 3 (data rules need the loader); `make req-coverage`
+shows which rules are tested and how the rest are verified. The guardrails themselves are proven
+by `make demo` (`scripts/demo_guardrails.sh`). In a throwaway worktree it attempts a lint error,
+a fake secret, a `.env` file, an unjustified suppression, a lowered coverage floor and a data
+file, and records pre-commit rejecting each; it then sends the agent hooks the events Claude Code
+would send for the same mistakes. `scripts/demo_guardrails.sh ci` pushes a bad change as a draft
+PR for CI to reject; it bypasses local hooks on purpose, so a human runs it, never the agent
+(GOV-014).
+
+The script lives outside `scripts/governance/` because that path is protected (GOV-013): the
+agent that wrote it could not create it there.

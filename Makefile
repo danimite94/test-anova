@@ -7,6 +7,7 @@ FRONTEND := frontend
 UV       := uv --directory $(BACKEND)
 NPM      := npm --prefix $(FRONTEND)
 NPX      := cd $(FRONTEND) && npx
+PY312    := uv run --quiet --no-project --python 3.12 python
 
 # testcontainers must reach the active Docker daemon (Colima, Docker Desktop, CI runner).
 DOCKER_HOST ?= $(shell docker context inspect --format '{{.Endpoints.docker.Host}}' 2>/dev/null)
@@ -14,7 +15,7 @@ export DOCKER_HOST
 export TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE ?= /var/run/docker.sock
 
 .PHONY: help install hooks up down reset logs lint format typecheck test test-fast test-one \
-        test-frontend e2e req-coverage guardrails openapi
+        test-frontend e2e req-coverage guardrails demo openapi
 
 help: ## List targets
 	@grep -hE '^[a-z0-9-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-14s %s\n", $$1, $$2}'
@@ -72,12 +73,13 @@ e2e: ## End-to-end tests against the running stack (run `make up` first)
 	$(NPX) playwright test
 
 req-coverage: ## Report requirement IDs without tests (GOV-016)
-	python3 scripts/governance/req_coverage.py
+	$(PY312) scripts/governance/req_coverage.py
 
-guardrails: ## Run the governance checks CI runs (suppressions, thresholds, pins, permissions)
-	uvx pre-commit run --all-files
-	python3 scripts/governance/check_thresholds.py
-	python3 scripts/governance/check_workflows.py
+guardrails: ## Run every pre-commit hook on all files, as CI does
+	SKIP=no-commit-to-branch uvx pre-commit run --all-files
+
+demo: ## Show each guardrail layer rejecting deliberately bad changes
+	bash scripts/demo_guardrails.sh
 
 openapi: ## Regenerate docs/openapi.json from the API (review the diff!)
 	$(UV) run python -c "import json; from telemetry.api.app import create_app; from telemetry.config import Settings; print(json.dumps(create_app(Settings('postgresql://unused@localhost/x')).openapi(), indent=2, sort_keys=True))" > docs/openapi.json
