@@ -1,0 +1,61 @@
+# Production-like local stack: `docker compose up` (ADR-0008, NFR-007).
+# Optional overrides come from an untracked .env file; see .env.example (GOV-008).
+name: telemetry
+
+services:
+  db:
+    image: postgres:16-alpine@sha256:81e77a4833487b8132fe4b00bedd39dc3f74b8641e387f19312a48f7de218c2e
+    environment:
+      POSTGRES_DB: telemetry
+      POSTGRES_USER: ${POSTGRES_USER:-telemetry}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-telemetry}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d telemetry"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  # One-shot job: migrate (Phase 2), then generate and load (Phase 3: FR-001, FR-002).
+  init:
+    build: ./backend
+    image: telemetry-backend:local
+    command: ["telemetry-migrate"]
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-telemetry}:${POSTGRES_PASSWORD:-telemetry}@db:5432/telemetry
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD:-telemetry_app}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      disable: true
+    restart: "no"
+
+  backend:
+    build: ./backend
+    image: telemetry-backend:local
+    environment:
+      # Least-privilege role: cannot alter or delete readings (GOV-005).
+      DATABASE_URL: postgresql://telemetry_app:${APP_DB_PASSWORD:-telemetry_app}@db:5432/telemetry
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    expose:
+      - "8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      init:
+        condition: service_completed_successfully
+
+  frontend:
+    build: ./frontend
+    image: telemetry-frontend:local
+    ports:
+      - "${FRONTEND_PORT:-8080}:8080"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  pgdata:
