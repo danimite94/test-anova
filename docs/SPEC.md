@@ -22,7 +22,7 @@ React + TypeScript + ECharts (ADR-0005).
 
 ```mermaid
 flowchart LR
-    subgraph offline["One-shot job (container: loader)"]
+    subgraph offline["One-shot job (container: init)"]
         GEN["Generator<br/>seed → readings.csv + manifest.json"]
         LOAD["Batch loader"]
         GEN --> LOAD
@@ -233,7 +233,7 @@ for the same input (FR-014 criterion 3).
 ### 4.2 Batch loader
 
 ```
-telemetry-load --input data/generated/   # runs once in the loader container
+telemetry-load --input data/generated/   # runs once in the init container, after telemetry-migrate
 ```
 
 1. Read `manifest.json`; compute SHA-256 of `readings.csv` and check it matches.
@@ -311,7 +311,8 @@ CREATE INDEX reading_sensor_ts ON reading (sensor_id, ts);
 - **Long format** (one row per reading) — ADR-0002.
 - Asset and sensor rows are seeded by the first migration.
 - `reading` has no unique `(sensor_id, ts)` because duplicates are stored, not discarded.
-- Migrations are versioned SQL files applied on backend startup (tooling in ADR-0006).
+- Migrations are versioned SQL files applied by the one-shot `init` job before data is loaded
+  (`telemetry-migrate`; tooling in ADR-0006, ordering in ADR-0008).
 - For replay, a `dataset` row is created at the first batch with `load_mode = 'replay'` and its
   counts updated per batch.
 
@@ -599,11 +600,12 @@ All configuration through environment variables; `.env.example` documents them.
 
 | Variable | Used by | Default |
 |---|---|---|
-| `DATABASE_URL` | loader, backend | `postgresql://telemetry:telemetry@db:5432/telemetry` |
-| `GENERATOR_SEED` | loader | `42` |
-| `GENERATOR_START` | loader | `2026-11-02T00:00:00Z` |
-| `GENERATOR_WEEKS` | loader | `1` |
-| `LOG_LEVEL` | loader, backend | `INFO` |
+| `DATABASE_URL` | init, backend | `postgresql://telemetry:telemetry@db:5432/telemetry` |
+| `GENERATOR_SEED` | init | `42` |
+| `GENERATOR_START` | init | `2026-11-02T00:00:00Z` |
+| `GENERATOR_WEEKS` | init | `1` |
+| `LOG_LEVEL` | init, backend | `INFO` |
+| `INIT_LOAD` | init | `true` (`false` = migrate only, for a replay demo) |
 | `API_BASE_URL` | replay client | `http://backend:8000/api/v1` |
 
 The local default credentials are for the local stack only; Phase 2 governance covers secrets.
@@ -613,7 +615,8 @@ The local default credentials are for the local stack only; Phase 2 governance c
 - JSON logs to stdout, one object per line, with `timestamp`, `level`, `logger`, `message` and
   context fields. The backend logs one line per request (method, path, status, duration).
 - Health checks: database — `pg_isready`; backend — `GET /api/v1/health`; frontend — nginx
-  serving `/`. The loader is a one-shot job; the backend waits for it to complete successfully.
+  serving `/`. The `init` job (migrate → generate → load) is one-shot; the backend waits for it
+  to complete successfully.
 
 ## 10. Requirement traceability
 
