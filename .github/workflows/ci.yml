@@ -1,0 +1,143 @@
+# CI (ADR-0009): every PR and push to main; also called by release.yml on tags.
+# Stages: lint & type check → unit → integration → images + compose smoke + e2e → traceability.
+# Protected path (GOV-013). Actions pinned to commit SHAs (GOV-010).
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  UV_PYTHON: "3.12"
+  FORCE_COLOR: "1"
+
+jobs:
+  lint:
+    name: Lint & type check (+ guardrails)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # full history for the secret scan
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: frontend/.nvmrc
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install dependencies
+        run: |
+          uv sync --project backend --locked
+          npm --prefix frontend ci --no-audit --no-fund
+      - name: All pre-commit hooks on all files (ruff, mypy, eslint, prettier, tsc, governance)
+        # no-commit-to-branch is meaningless here: CI runs on the merge ref, not a local branch.
+        env:
+          SKIP: no-commit-to-branch
+        run: uvx pre-commit run --all-files --show-diff-on-failure
+      - name: Secret scan over full history (GOV-007)
+        run: >
+          docker run --rm -v "$PWD:/repo"
+          zricethezav/gitleaks:v8.30.1@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f
+          git /repo --redact --no-banner
+
+  unit:
+    name: Unit tests
+    needs: lint
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: frontend/.nvmrc
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Backend unit tests
+        working-directory: backend
+        run: uv run --locked pytest -m unit
+      - name: Frontend unit tests
+        run: |
+          npm --prefix frontend ci --no-audit --no-fund
+          npm --prefix frontend test
+
+  integration:
+    name: Integration & contract tests (real PostgreSQL)
+    needs: unit
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+      - name: All backend tests with coverage floor (NFR-009)
+        working-directory: backend
+        run: >
+          uv run --locked pytest -m "not perf and not e2e"
+          --cov --cov-fail-under=85 --cov-report=term --cov-report="markdown-append:$GITHUB_STEP_SUMMARY"
+
+  e2e:
+    name: Images, compose smoke & e2e (NFR-007)
+    needs: integration
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: frontend/.nvmrc
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Build images and start the stack from scratch
+        run: |
+          start=$(date +%s)
+          docker compose up -d --build --wait
+          echo "Stack healthy in $(( $(date +%s) - start ))s (NFR-007 budget: 300s)" | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Smoke test health endpoints through the frontend proxy
+        run: |
+          curl -fsS http://127.0.0.1:8080/ -o /dev/null
+          curl -fsS http://127.0.0.1:8080/api/v1/health | tee /dev/stderr | grep -q '"database":"ok"'
+      - name: Playwright e2e (Chromium + Firefox)
+        working-directory: frontend
+        run: |
+          npm ci --no-audit --no-fund
+          npx playwright install --with-deps chromium firefox
+          npx playwright test
+      - name: Service logs on failure
+        if: failure()
+        run: docker compose logs --no-color
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: failure()
+        with:
+          name: playwright-report
+          path: frontend/playwright-report
+          retention-days: 7
+      - name: Tear down
+        if: always()
+        run: docker compose down -v
+
+  req-coverage:
+    name: Requirement traceability (GOV-016)
+    needs: e2e
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+      - name: Every Must FR, NFR and GOV ID has a test or a recorded status
+        run: |
+          set -o pipefail
+          uv run --no-project python scripts/governance/req_coverage.py | tee -a "$GITHUB_STEP_SUMMARY"

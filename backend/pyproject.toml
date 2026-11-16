@@ -1,0 +1,75 @@
+[project]
+name = "telemetry"
+version = "0.1.0"
+description = "Pump Skid Telemetry Explorer — backend, generator and loader"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "psycopg[binary]>=3.2",
+    "psycopg-pool>=3.2",
+    "pydantic>=2.9",
+]
+
+[project.scripts]
+telemetry-migrate = "telemetry.db.migrate:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "pytest-cov>=6.0",
+    "testcontainers[postgres]>=4.8",
+    "mypy>=1.13",
+    "ruff>=0.8",
+    "httpx2>=2.16.2",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/telemetry"]
+
+# --- Quality configuration: protected by GOV-013; floors checked by GOV-012 ---
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "B", "UP", "S", "PT", "SIM", "RUF"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101"]  # assert is how pytest tests are written
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+files = ["src", "tests"]
+
+[[tool.mypy.overrides]]
+module = ["testcontainers.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = ["-ra", "--strict-markers", "--strict-config"]
+markers = [
+    "unit: pure tests, no I/O (auto-applied in tests/unit)",
+    "integration: real PostgreSQL via testcontainers (auto-applied in tests/integration)",
+    "contract: API contract vs docs/openapi.json (auto-applied in tests/contract)",
+    "e2e: full stack via compose (auto-applied in tests/e2e)",
+    "perf: performance, report-only (auto-applied in tests/perf)",
+    "req(*ids): requirement IDs this test verifies, e.g. req('FR-006')",
+]
+
+[tool.coverage.run]
+source = ["telemetry"]
+branch = true
+
+[tool.coverage.report]
+fail_under = 85
+show_missing = true
+skip_covered = true
