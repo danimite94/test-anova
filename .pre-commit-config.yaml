@@ -1,0 +1,98 @@
+# Enforcement layer: pre-commit (docs/GOVERNANCE.md). Bypassable locally, so CI re-runs every
+# hook on all files. Protected path (GOV-013). Install with `make hooks`.
+default_install_hook_types: [pre-commit]
+fail_fast: false
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: 3e8a8703264a2f4a69428a0aa4dcb512790b2c8c  # frozen: v6.0.0
+    hooks:
+      - id: check-added-large-files # GOV-002
+        args: [--maxkb=500]
+      - id: no-commit-to-branch # GOV-014
+        args: [--branch, main]
+      - id: detect-private-key # GOV-007
+      - id: check-merge-conflict
+      - id: check-yaml
+      - id: check-json
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: 2ca41cc1372d1e939a6a879f18cdc19fc1cac1ce  # frozen: v8.30.0
+    hooks:
+      - id: gitleaks # GOV-007 (staged changes; CI scans full history)
+
+  - repo: local
+    hooks:
+      # --- Data and secrets ----------------------------------------------------------------
+      - id: forbid-env-files
+        name: forbid .env files (GOV-008)
+        language: fail
+        entry: ".env files are never committed — put defaults in .env.example (GOV-008)"
+        files: '(^|/)\.env(\..*)?$'
+        exclude: '(^|/)\.env\.example$'
+      - id: forbid-data-files
+        name: forbid data files (GOV-002)
+        language: fail
+        entry: "data files are never committed — the generator recreates them (GOV-002)"
+        files: '\.(csv|parquet|jsonl|sqlite|db|dump|xlsx)$'
+        exclude: '^backend/tests/fixtures/'
+
+      # --- Guardrails on the guardrails ----------------------------------------------------
+      - id: check-suppressions
+        name: unjustified check suppressions (GOV-012)
+        language: system
+        entry: uv run --quiet --no-project --python 3.12 python scripts/governance/check_suppressions.py
+        types: [text]
+      - id: check-thresholds
+        name: quality threshold floors (GOV-012)
+        language: system
+        entry: uv run --quiet --no-project --python 3.12 python scripts/governance/check_thresholds.py
+        pass_filenames: false
+        files: '^(backend/pyproject\.toml|frontend/(tsconfig\.json|eslint\.config\.js|package\.json)|\.github/workflows/ci\.yml)$'
+      - id: check-workflows
+        name: pinned actions/images, least-privilege CI (GOV-009, GOV-010)
+        language: system
+        entry: uv run --quiet --no-project --python 3.12 python scripts/governance/check_workflows.py
+        pass_filenames: false
+        files: '^(\.github/workflows/.*|.*Dockerfile|compose.*\.ya?ml)$'
+
+      # --- Python: lint, format, types (versions from backend/uv.lock) ---------------------
+      - id: ruff-check
+        name: ruff check
+        language: system
+        # Run from backend/ so ruff resolves the config's relative paths (src, per-file-ignores).
+        entry: bash -c 'cd backend && uv run --quiet ruff check --fix --config pyproject.toml "${@/#/../}"' --
+        types: [python]
+      - id: ruff-format
+        name: ruff format
+        language: system
+        entry: bash -c 'cd backend && uv run --quiet ruff format --config pyproject.toml "${@/#/../}"' --
+        types: [python]
+      - id: mypy
+        name: mypy --strict
+        language: system
+        entry: bash -c 'cd backend && uv run --quiet mypy . ../scripts/governance ../.claude/hooks'
+        pass_filenames: false
+        types: [python]
+
+      # --- Frontend: lint, format, types (versions from frontend/package-lock.json) --------
+      - id: eslint
+        name: eslint
+        language: system
+        entry: npm --prefix frontend run --silent lint
+        pass_filenames: false
+        files: '^frontend/.*\.(ts|tsx|js)$'
+      - id: prettier
+        name: prettier
+        language: system
+        entry: npm --prefix frontend run --silent format:check
+        pass_filenames: false
+        files: '^frontend/'
+      - id: tsc
+        name: tsc --strict
+        language: system
+        entry: npm --prefix frontend run --silent typecheck
+        pass_filenames: false
+        files: '^frontend/.*\.(ts|tsx)$'
