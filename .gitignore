@@ -1,0 +1,37 @@
+# Secrets — only .env.example is tracked (GOV-008)
+.env
+.env.*
+!.env.example
+
+# Generated data never enters the repo (GOV-002)
+data/
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+dist/
+build/
+
+# Node
+node_modules/
+frontend/dist/
+frontend/test-results/
+frontend/playwright-report/
+frontend/blob-report/
+frontend/coverage/
+
+# OS / editors
+.DS_Store
+.idea/
+.vscode/
+
+# Claude Code local-only settings (project settings.json is tracked)
+.claude/settings.local.json

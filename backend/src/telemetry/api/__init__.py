@@ -1,0 +1,1 @@
+"""HTTP API (SPEC §6, ADR-0004)."""

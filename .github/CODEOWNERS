@@ -1,0 +1,10 @@
+# Protected paths (GOV-013): changes need the repository owner's review.
+/.github/                  @danimite94
+/.claude/                  @danimite94
+/.pre-commit-config.yaml   @danimite94
+/scripts/governance/       @danimite94
+/backend/pyproject.toml    @danimite94
+/frontend/eslint.config.js @danimite94
+/frontend/tsconfig.json    @danimite94
+/docs/adr/                 @danimite94
+/docs/GOVERNANCE.md        @danimite94

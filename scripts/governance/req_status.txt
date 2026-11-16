@@ -1,0 +1,35 @@
+# Requirement IDs verified by something other than a test, or not built yet (GOV-016).
+# Format: <ID> <pending|ci|review|manual|demo> <reason>
+# Protected path (GOV-013): the agent may only remove lines from this file.
+
+FR-001 pending Phase 3: generator
+FR-002 pending Phase 3: loader and classifier
+FR-003 pending Phase 3: sensor overview
+FR-004 pending Phase 3: single-sensor chart
+FR-005 pending Phase 3: comparison view
+FR-006 pending Phase 3: hourly aggregates
+FR-007 pending Phase 3: gaps
+FR-008 pending Phase 3: limit anomalies
+FR-009 pending Phase 3: statistical anomalies
+FR-010 pending Phase 3: anomaly list
+FR-011 pending Phase 3: quality summary
+FR-012 pending Phase 3: raw export
+FR-013 pending Phase 3: aggregate export
+FR-014 pending Phase 3: replay
+NFR-001 pending Phase 3: 10x load test needs the generator
+NFR-002 pending Phase 3: load throughput needs the loader
+NFR-003 pending Phase 3: query latency needs the queries
+NFR-004 pending Phase 3: frontend timing needs the charts
+NFR-005 pending Phase 3: data survives restart, once data exists
+NFR-006 pending Phase 3: reproducibility needs the generator
+NFR-008 pending Phase 3: UTC handling in parsing and exports
+NFR-012 manual PRD: latest desktop Chrome and Firefox (e2e runs both engines)
+GOV-001 review generator is the only data source; checked in review
+GOV-002 demo pre-commit forbid-data-files and check-added-large-files, re-run in CI
+GOV-003 pending Phase 3: contract validation in the loader
+GOV-004 pending Phase 3: lineage headers on exports
+GOV-006 pending Phase 3: reset/retention test with NFR-005
+GOV-007 ci gitleaks in pre-commit and over full history in CI
+GOV-011 review spec-first checked by PR template and review
+GOV-015 demo PostToolUse and Stop hooks shown in scripts/governance/demo.sh
+GOV-017 review attribution checked in review
