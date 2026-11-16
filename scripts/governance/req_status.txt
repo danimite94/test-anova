@@ -2,7 +2,6 @@
 # Format: <ID> <pending|ci|review|manual|demo> <reason>
 # Protected path (GOV-013): the agent may only remove lines from this file.
 
-FR-001 pending Phase 3: generator
 FR-002 pending Phase 3: loader and classifier
 FR-003 pending Phase 3: sensor overview
 FR-004 pending Phase 3: single-sensor chart
