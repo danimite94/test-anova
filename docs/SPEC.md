@@ -72,8 +72,11 @@ flowchart LR
 
 One asset: `P-101`, "Pump skid P-101".
 
-Limits are **illustrative** values for a mid-size centrifugal pump (PRD OQ-1) and live in the
-`sensor` table, not in code. Empty cells mean "no limit".
+Limits are **illustrative** values for a mid-size centrifugal pump (PRD OQ-1). Empty cells mean
+"no limit". The catalogue is defined once in `telemetry.domain.catalogue`, which the generator
+uses offline (it needs valid ranges and limits without a database). The first migration seeds the
+`sensor` table with the same values, an integration test keeps the two equal, and at runtime the
+API reads limits from the table.
 
 | Sensor | Measurement | Unit | Valid range | Alarm low | Warn low | Warn high | Alarm high |
 |---|---|---|---|---|---|---|---|
@@ -166,8 +169,8 @@ These are fixed in time so tests and demos can rely on them. They produce real a
 
 | ID | When (UTC) | What happens | Expected anomalies |
 |---|---|---|---|
-| EV-1 | 2026-11-04 08:00–14:00 | Bearing degradation: VT-101 ramps 2.0 → 8.0 mm/s; TT-102 rises up to +12 °C. Back to baseline at 14:00 (maintenance). | VT-101 warning → alarm high; TT-102 warning (and alarm) high — one event per sensor |
-| EV-2 | 2026-11-05 03:00–03:20 | Pump trip: FT-101 → 0 ± 0.5, PT-101 → 0.5 ± 0.05. | FT-101 alarm low; PT-101 alarm low |
+| EV-1 | 2026-11-04 08:00–14:00 | Bearing degradation: VT-101 ramps linearly 2.0 → 8.0 mm/s; TT-102 rises linearly by up to +32 °C (baseline ≈ 32–36 °C in this window, so it crosses 55 and then 65). Back to baseline at 14:00 (maintenance). | VT-101 warning → alarm high; TT-102 warning → alarm high — one event per sensor |
+| EV-2 | 2026-11-05 03:00–03:20 | Pump trip: FT-101 uniform in 0–0.5 (never negative: that would be an outlier), PT-101 uniform in 0.45–0.55. | FT-101 alarm low; PT-101 alarm low |
 | EV-3 | 2026-11-06 15:00 | Single pressure spike: PT-101 + 1.2 bar for one reading (≈ 7.2 bar, inside limits). | PT-101 statistical high (FR-009) |
 
 ### 3.5 Data quality injection
@@ -185,6 +188,19 @@ the seed (except the scripted dropouts) and never overlap scripted events.
 
 Every sensor therefore has at least one gap; at least one dropout ≥ 15 min exists; and the
 dataset contains late, duplicate and outlier deliveries — satisfying FR-001 criterion 3.
+
+**Placement rules**, so each injected issue is unambiguous and the manifest is exact:
+
+- Gaps never touch an event window, a dropout or another gap (at least one present slot between).
+- Outliers, late readings and duplicate sources are distinct readings outside event windows.
+  "Remaining readings" for the 0.5% / 0.2% rates means readings that are not outliers; counts are
+  rounded to the nearest integer.
+- A late reading is only chosen where the sensor's next slot is present and delivered on time, so
+  at least one later-timestamped reading always arrives first and the reading is classified
+  `late` (§4.1). Duplicates copy on-time, non-outlier readings.
+- **Arrival order**: an on-time reading arrives at its `ts`; a late one at `ts` + delay; a duplicate
+  at `ts` + delay. Records are ordered by arrival time, then on-time before delayed, then
+  original before duplicate, then `ts`, then sensor in catalogue order. `seq` numbers that order.
 
 ### 3.6 Manifest — `manifest.json`
 
