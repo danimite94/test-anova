@@ -10,7 +10,6 @@ EXPECTED_TABLES = {"asset", "sensor", "dataset", "reading", "schema_migrations"}
 EXPECTED_SENSORS = {"TT-101", "TT-102", "PT-101", "VT-101", "FT-101"}
 
 
-@pytest.mark.req("NFR-005")
 def test_migrations_create_schema_and_seed_catalogue(database: Database) -> None:
     with psycopg.connect(database.owner_url) as conn:
         tables = {
@@ -25,7 +24,6 @@ def test_migrations_create_schema_and_seed_catalogue(database: Database) -> None
     assert sensors == EXPECTED_SENSORS
 
 
-@pytest.mark.req("NFR-005")
 def test_migrations_are_idempotent(database: Database) -> None:
     migrate(database.owner_url, app_password=APP_PASSWORD)  # second run
 
