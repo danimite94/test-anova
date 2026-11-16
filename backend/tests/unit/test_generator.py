@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+
 from telemetry.domain.catalogue import SENSORS
 from telemetry.generator import GENERATOR_VERSION, generate, write_dataset
 from telemetry.generator.cli import main

@@ -1,8 +1,8 @@
 """The code catalogue and the seeded `sensor` table must not drift apart (SPEC §2.1)."""
 
 import psycopg
-from telemetry.domain.catalogue import SENSORS
 
+from telemetry.domain.catalogue import SENSORS
 from tests.conftest import Database
 
 QUERY = """
