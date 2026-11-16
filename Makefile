@@ -15,7 +15,7 @@ export DOCKER_HOST
 export TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE ?= /var/run/docker.sock
 
 .PHONY: help install hooks up down reset logs lint format typecheck test test-fast test-one \
-        test-frontend e2e req-coverage guardrails demo openapi
+        test-frontend e2e req-coverage guardrails demo generate openapi
 
 help: ## List targets
 	@grep -hE '^[a-z0-9-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-14s %s\n", $$1, $$2}'
@@ -80,6 +80,9 @@ guardrails: ## Run every pre-commit hook on all files, as CI does
 
 demo: ## Show each guardrail layer rejecting deliberately bad changes
 	bash scripts/demo_guardrails.sh
+
+generate: ## Generate the synthetic week into data/generated/ (FR-001; SEED=42 WEEKS=1)
+	$(UV) run telemetry-generate --seed $(or $(SEED),42) --weeks $(or $(WEEKS),1) --out ../data/generated
 
 openapi: ## Regenerate docs/openapi.json from the API (review the diff!)
 	$(UV) run python -c "import json; from telemetry.api.app import create_app; from telemetry.config import Settings; print(json.dumps(create_app(Settings('postgresql://unused@localhost/x')).openapi(), indent=2, sort_keys=True))" > docs/openapi.json

@@ -9,10 +9,12 @@ dependencies = [
     "psycopg[binary]>=3.2",
     "psycopg-pool>=3.2",
     "pydantic>=2.9",
+    "numpy>=2.1",
 ]
 
 [project.scripts]
 telemetry-migrate = "telemetry.db.migrate:main"
+telemetry-generate = "telemetry.generator.cli:main"
 
 [dependency-groups]
 dev = [
